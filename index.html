@@ -35,11 +35,22 @@
             text-align: center;
         }
 
+        .header-icon {
+            width: 50px;
+            height: 50px;
+            margin-right: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
         h1 {
             color: #667eea;
             font-size: 2.5em;
             margin-bottom: 10px;
             font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .subtitle {
@@ -234,7 +245,10 @@
 <body>
     <div class="container">
         <header>
-            <h1>📊 고등학교 2학년 공학일반 성적 분석</h1>
+            <h1>
+                <img src="engineering_header_icon_1768802681786.png" alt="Engineering Icon" class="header-icon">
+                고등학교 2학년 공학일반 성적 분석
+            </h1>
             <p class="subtitle">Interactive Grade Dashboard</p>
         </header>
 
