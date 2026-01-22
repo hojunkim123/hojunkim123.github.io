@@ -1,0 +1,1737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>진해동일고등학교 수학여행 종합 관리 시스템</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; -webkit-tap-highlight-color: transparent; }
+    .h-screen-safe { height: 100vh; height: -webkit-fill-available; }
+  </style>
+</head>
+
+<body class="bg-gray-100">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, StrictMode } = React;
+
+    // =========================
+    // 1) MOCK DATA (로컬 HTML 실행용)
+    // =========================
+    const MOCK_SERVER_DATA = {
+      students: [
+        '1반 01번 강지민', '1반 02번 김서아', '1반 03번 박이준', '1반 04번 이시우', '1반 05번 정하윤', '1반 06번 오지안',
+        '2반 01번 최유찬', '2반 02번 윤아린', '2반 03번 한재이', '2반 04번 신은우', '2반 05번 송지호', '2반 06번 배서아',
+        '3반 01번 오서준', '3반 02번 임도하', '3반 03번 황리안', '3반 04번 문지아', '3반 05번 장서우', '3반 06번 김이서',
+        '4반 01번 고은호', '4반 02번 곽시안', '4반 03번 권이안', '4반 04번 백로운', '4반 05번 허유주', '4반 06번 유나비'
+      ],
+      teachers: [
+        { name: "김민준(총괄)", contact: "010-1234-5678" },
+        { name: "이서연(1호차)", contact: "010-2345-6789" },
+        { name: "박도윤(2호차)", contact: "010-3456-7890" },
+        { name: "최아인(3호차)", contact: "010-4567-8901" }
+      ],
+      busData: {
+        '1': { '1': '1반 01번 강지민', '5': '2반 01번 최유찬' },
+        '2': { '1': '1반 02번 김서아' },
+        '3': {}
+      },
+      activities: {
+        day1_kbs: ['1반 01번 강지민', '2반 01번 최유찬', '3반 01번 오서준', '4반 01번 고은호'],
+        day1_museum: ['1반 02번 김서아', '2반 02번 윤아린', '3반 02번 임도하', '4반 02번 곽시안'],
+        day2_sky: ['1반 03번 박이준', '1반 04번 이시우', '3반 05번 장서우', '4반 04번 백로운'],
+      },
+      roomData: [
+        ['101', '2인실', '1반 01번 강지민'], ['101', '2인실', '1반 02번 김서아'],
+        ['102', '2인실', '1반 03번 박이준'], ['102', '2인실', '1반 04번 이시우'],
+        ['201', '3인실', '2반 01번 최유찬'], ['201', '3인실', '2반 02번 윤아린'], ['201', '3인실', '2인실', '2반 03번 한재이'].slice(0,3),
+        ['202', '3인실', '김민준(총괄)'], ['202', '3인실', '이서연(1호차)'],
+      ],
+      announcements: [
+        { timestamp: '2026. 01. 21. 오전 9:05', text: '1호차, 2호차 학생들은 10분 뒤 출발합니다. 늦지 않게 탑승해주세요.' },
+        { timestamp: '2026. 01. 22. 오전 8:30', text: '모든 학생은 9시까지 지정된 버스에 탑승 완료해주시기 바랍니다.' },
+      ],
+      missions: [
+        ['1일차', 'KBS 방송국', '뉴스 앵커 데스크에서 사진 찍기'],
+        ['1일차', '국립중앙박물관', '가장 마음에 드는 유물과 함께 인증샷 남기기'],
+        ['2일차', '롯데월드', '팀원 전체가 머리띠하고 단체 사진 찍기'],
+        ['3일차', '경복궁', '외국인 관광객에게 먼저 다가가서 사진 찍어주기'],
+      ],
+      mealMenus: [
+        ['day1_lunch', '1일차 점심', '불고기백반', '비빔밥'],
+        ['day1_dinner', '1일차 저녁', 'A코스(양식)', 'B코스(한식)', 'C코스(자율)'],
+        ['day2_lunch', '2일차 점심 (롯데월드)', '자유선택'],
+        ['day3_lunch', '3일차 점심', '메뉴1', '메뉴2'],
+      ],
+      mealChoices: {
+        'day1_lunch': { '1반 01번 강지민': '불고기백반', '1반 02번 김서아': '비빔밥' },
+        'day1_dinner': { '1반 01번 강지민': 'A코스(양식)' }
+      }
+    };
+
+    let mockDataStore = JSON.parse(JSON.stringify(MOCK_SERVER_DATA));
+
+    // =========================
+    // 2) Google Script 연결 감지
+    // =========================
+    const isDevelopment = !(window.google && window.google.script && window.google.script.run);
+
+    if (isDevelopment) {
+      console.log('%c[DEV MODE] Using mock data. (로컬 HTML 실행)', 'color: orange; font-weight: bold;');
+    }
+
+    // =========================
+    // 3) runAsync (DEV: mock / PROD: google.script.run)
+    // =========================
+    const runAsync = (functionName, ...args) => {
+      if (isDevelopment) {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            console.log(`[DEV MODE] Mock call: ${functionName}`, args);
+            try {
+              let result;
+              switch (functionName) {
+                case 'getServerData':
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+
+                case 'updateBusSeat': {
+                  const [bus, seat, name] = args;
+                  if (!mockDataStore.busData[bus]) mockDataStore.busData[bus] = {};
+                  Object.keys(mockDataStore.busData).forEach(busKey => {
+                    Object.keys(mockDataStore.busData[busKey]).forEach(seatKey => {
+                      if (mockDataStore.busData[busKey][seatKey] === name) {
+                        delete mockDataStore.busData[busKey][seatKey];
+                      }
+                    });
+                  });
+                  if (name) mockDataStore.busData[bus][seat] = name;
+                  else delete mockDataStore.busData[bus][seat];
+
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                case 'resetBus': {
+                  const [busToReset] = args;
+                  if (mockDataStore.busData[busToReset]) mockDataStore.busData[busToReset] = {};
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                case 'addAnnouncement': {
+                  const [text] = args;
+                  const newAnnouncement = {
+                    timestamp: new Date().toLocaleString('ko-KR', {
+                      hour12: false,
+                      year: 'numeric', month: '2-digit', day: '2-digit',
+                      hour: '2-digit', minute: '2-digit'
+                    }),
+                    text,
+                  };
+                  mockDataStore.announcements.unshift(newAnnouncement);
+                  result = [...mockDataStore.announcements];
+                  break;
+                }
+
+                case 'saveAllMealChoices': {
+                  const [studentName, choices] = args;
+                  Object.keys(mockDataStore.mealChoices).forEach(mealId => {
+                    if (mockDataStore.mealChoices[mealId][studentName]) {
+                      delete mockDataStore.mealChoices[mealId][studentName];
+                    }
+                  });
+                  Object.keys(choices).forEach(mealId => {
+                    if (!mockDataStore.mealChoices[mealId]) mockDataStore.mealChoices[mealId] = {};
+                    mockDataStore.mealChoices[mealId][studentName] = choices[mealId];
+                  });
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                case 'updateStudentActivity': {
+                  const [studentName, newActivityKey] = args;
+                  Object.keys(mockDataStore.activities).forEach(k => {
+                    mockDataStore.activities[k] = (mockDataStore.activities[k] || []).filter(n => n !== studentName);
+                  });
+                  if (newActivityKey && newActivityKey !== 'none') {
+                    if (!mockDataStore.activities[newActivityKey]) mockDataStore.activities[newActivityKey] = [];
+                    if (!mockDataStore.activities[newActivityKey].includes(studentName)) {
+                      mockDataStore.activities[newActivityKey].push(studentName);
+                    }
+                  }
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                // ✅ 숙소 배정: 특정 사람을 특정 방에 배정(기존 배정은 제거)
+                case 'setRoomAssignment': {
+                  const [personName, roomNum, roomType] = args;
+
+                  // 1) 기존 배정 제거
+                  mockDataStore.roomData = (mockDataStore.roomData || []).filter(row => row[2] !== personName);
+
+                  // 2) 새 배정 추가 (roomNum, roomType, personName)
+                  if (personName && roomNum && roomType) {
+                    mockDataStore.roomData.push([String(roomNum), String(roomType), String(personName)]);
+                  }
+
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                // ✅ 숙소 배정 삭제
+                case 'removeRoomAssignment': {
+                  const [personName] = args;
+                  mockDataStore.roomData = (mockDataStore.roomData || []).filter(row => row[2] !== personName);
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                // ✅ 방 타입 변경(해당 방 전체)
+                case 'setRoomType': {
+                  const [roomNum, roomType] = args;
+                  mockDataStore.roomData = (mockDataStore.roomData || []).map(row => {
+                    if (String(row[0]) === String(roomNum)) return [String(roomNum), String(roomType), row[2]];
+                    return row;
+                  });
+                  result = JSON.parse(JSON.stringify(mockDataStore));
+                  break;
+                }
+
+                case 'saveSubscription':
+                  console.log('Saved subscription:', args[0]);
+                  result = { success: true };
+                  break;
+
+                default:
+                  throw new Error(`Mock for ${functionName} not implemented.`);
+              }
+              resolve(result);
+            } catch (e) {
+              console.error(`Mock function for ${functionName} failed:`, e);
+              resolve({ error: true, message: e.message });
+            }
+          }, 250);
+        });
+      }
+
+      // PROD (Apps Script)
+      return new Promise((resolve, reject) => {
+        window.google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          [functionName](...args);
+      });
+    };
+
+    const googleScript = {
+      getServerData: () => runAsync('getServerData'),
+      updateBusSeat: (bus, seat, name) => runAsync('updateBusSeat', bus, seat, name),
+      resetBus: (bus) => runAsync('resetBus', bus),
+      addAnnouncement: (text) => runAsync('addAnnouncement', text),
+      saveAllMealChoices: (studentName, choices) => runAsync('saveAllMealChoices', studentName, choices),
+      saveSubscription: (subscription) => runAsync('saveSubscription', subscription),
+
+      updateStudentActivity: (studentName, activityKey) => runAsync('updateStudentActivity', studentName, activityKey),
+
+      // ✅ 숙소 배정(교사용 편집)
+      setRoomAssignment: (personName, roomNum, roomType) => runAsync('setRoomAssignment', personName, roomNum, roomType),
+      removeRoomAssignment: (personName) => runAsync('removeRoomAssignment', personName),
+      setRoomType: (roomNum, roomType) => runAsync('setRoomType', roomNum, roomType),
+    };
+
+    // =========================
+    // 4) Icons
+    // =========================
+    const Icon = ({ path, className="w-6 h-6" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path fillRule="evenodd" d={path} clipRule="evenodd" />
+      </svg>
+    );
+
+    const BusIcon = () => <Icon path="M3 5.25A2.25 2.25 0 015.25 3h13.5A2.25 2.25 0 0121 5.25v13.5A2.25 2.25 0 0118.75 21H5.25A2.25 2.25 0 013 18.75V5.25zM5.25 4.5a.75.75 0 00-.75.75v3a.75.75 0 00.75.75h13.5a.75.75 0 00.75-.75v-3a.75.75 0 00-.75-.75H5.25zM19.5 10.5H4.5v8.25c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75V10.5z" />;
+    const ScheduleIcon = () => <Icon path="M12.75 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM7.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM8.25 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM9.75 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM10.5 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12.75 18a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM15 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12 2.25A5.25 5.25 0 006.75 7.5v.75H5.25A2.25 2.25 0 003 10.5v8.25c0 1.242 1.008 2.25 2.25 2.25h13.5A2.25 2.25 0 0021 18.75V10.5A2.25 2.25 0 0018.75 8.25h-1.5V7.5A5.25 5.25 0 0012 2.25z" />;
+    const MegaphoneIcon = () => <Icon path="M10.5 1.75a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5zM13.5 1.75a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5zM2.25 7.5A.75.75 0 003 8.25v1.5a.75.75 0 001.5 0v-1.5A.75.75 0 003.75 6H2.25a.75.75 0 00-.75.75v10.5c0 .414.336.75.75.75h1.5a.75.75 0 000-1.5H3V8.25A.75.75 0 002.25 7.5zM6 7.5a.75.75 0 00-.75.75v1.5a.75.75 0 001.5 0v-1.5A.75.75 0 006 7.5zM18 7.5a.75.75 0 00-.75.75v1.5a.75.75 0 001.5 0v-1.5A.75.75 0 0018 7.5zM20.25 6h-1.5a.75.75 0 00-.75.75v1.5a.75.75 0 001.5 0v-1.5A.75.75 0 0020.25 6zM5.625 13.5a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3zM8.625 13.5a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3zM11.625 13.5a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3zM14.625 13.5a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3zM17.625 13.5a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3z" />;
+    const KeyIcon = () => <Icon path="M15.75 1.5a6.75 6.75 0 00-6.651 7.906c.067.39-.032.787-.221 1.122l-.11.17a.75.75 0 00.63 1.152l3.612.903a.75.75 0 00.58-.124l1.83-1.83a.75.75 0 000-1.06l-1.83-1.83a.75.75 0 00-1.06 0l-.22.22a.75.75 0 01-1.06 0l-.053-.053a.75.75 0 010-1.06l.954-.954a4.5 4.5 0 116.364 6.364l-1.591 1.591a.75.75 0 001.06 1.06l1.591-1.59a6.75 6.75 0 00-5.651-11.082zM3 21a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />;
+    const StarIcon = () => <Icon path="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.006z" />;
+    const UsersIcon = () => <Icon path="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-4.663M12 12a3 3 0 100-6 3 3 0 000 6z" />;
+    const FoodIcon = () => <Icon path="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-8.97C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5V8H21V2h-2v4h-2.5z" />;
+
+    // =========================
+    // 5) Shared UI Components
+    // =========================
+    const LoadingSpinner = ({ message = "로딩중..." }) => (
+      <div className="fixed inset-0 bg-white bg-opacity-75 flex flex-col justify-center items-center z-50">
+        <svg className="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="mt-4 text-lg font-bold text-gray-700">{message}</p>
+      </div>
+    );
+
+    const Modal = ({ isOpen, onClose, title, children }) => {
+      if (!isOpen) return null;
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            </div>
+            <div>{children}</div>
+          </div>
+        </div>
+      );
+    };
+
+    // =========================
+    // 6) Feature Views
+    // =========================
+
+    const PushNotificationManager = () => null;
+
+    const AnnouncementsView = ({ announcements, onAdd, isLoading }) => {
+      const TEACHER_PASSWORD = "123456";
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [isUnlocked, setIsUnlocked] = useState(false);
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [newAnnouncement, setNewAnnouncement] = useState('');
+
+      const handlePassword = (e) => {
+        e.preventDefault();
+        if (password === TEACHER_PASSWORD) {
+          setIsUnlocked(true);
+          setIsModalOpen(false);
+          setError('');
+          setPassword('');
+        } else {
+          setError('비밀번호가 일치하지 않습니다.');
+        }
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!newAnnouncement.trim()) return;
+        await onAdd(newAnnouncement);
+        setNewAnnouncement('');
+      };
+
+      return (
+        <div className="p-4">
+          <div className="bg-white p-4 rounded-xl shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-800">📢 실시간 공지</h2>
+              {!isUnlocked && (
+                <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">
+                  공지 등록
+                </button>
+              )}
+            </div>
+
+            <PushNotificationManager />
+
+            {isUnlocked && (
+              <form onSubmit={handleSubmit} className="mb-6">
+                <textarea
+                  className="w-full p-2 border rounded-md"
+                  rows="3"
+                  placeholder="공지사항을 입력하세요..."
+                  value={newAnnouncement}
+                  onChange={e => setNewAnnouncement(e.target.value)}
+                  disabled={isLoading}
+                />
+                <button
+                  type="submit"
+                  className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md disabled:bg-gray-400"
+                  disabled={isLoading}
+                >
+                  {isLoading ? '등록 중...' : '공지 등록'}
+                </button>
+              </form>
+            )}
+
+            <div className="space-y-4 max-h-[65vh] overflow-y-auto">
+              {announcements && announcements.length > 0 ? announcements.map((item, i) => (
+                <div key={i} className="bg-amber-100 p-4 rounded-lg border-l-4 border-amber-400">
+                  <p className="text-gray-800 whitespace-pre-wrap">{item.text}</p>
+                  <p className="text-right text-xs text-gray-500 mt-2">{item.timestamp}</p>
+                </div>
+              )) : (
+                <p className="text-center text-gray-500 py-8">등록된 공지사항이 없습니다.</p>
+              )}
+            </div>
+          </div>
+
+          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="교사용 인증">
+            <form onSubmit={handlePassword}>
+              <input
+                type="password"
+                placeholder="비밀번호"
+                className="w-full p-2 border rounded-md"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+              <button type="submit" className="w-full mt-4 bg-blue-500 text-white font-bold py-2 px-4 rounded-md">확인</button>
+            </form>
+          </Modal>
+        </div>
+      );
+    };
+
+    // ✅ 숙소 탭: "배정 명단(공개)" + "교사용 편집(잠금)" 내부 탭 제공
+    const RoomsView = ({ roomData, teachers, students, onUpdate, isLoading }) => {
+      const TEACHER_PASSWORD = "123456";
+
+      const [mode, setMode] = useState('list'); // 'list' | 'edit'
+      const [isUnlocked, setIsUnlocked] = useState(false);
+      const [pw, setPw] = useState('');
+      const [pwErr, setPwErr] = useState('');
+
+      const [search, setSearch] = useState('');
+      const [selectedPerson, setSelectedPerson] = useState(null);
+      const [roomNum, setRoomNum] = useState('');
+      const [roomType, setRoomType] = useState('2인실');
+
+      const allPeople = useMemo(() => {
+        const t = (teachers || []).map(x => x.name);
+        const s = (students || []);
+        return Array.from(new Set([...s, ...t])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      }, [teachers, students]);
+
+      const filteredPeople = useMemo(() => {
+        const list = allPeople;
+        if (!search.trim()) return list;
+        const q = search.toLowerCase().trim();
+        return list.filter(p => p.toLowerCase().includes(q));
+      }, [search, allPeople]);
+
+      // roomData -> rooms grouped
+      const groupedRooms = useMemo(() => {
+        const rooms = {};
+        (roomData || []).forEach(row => {
+          const rnum = String(row[0] ?? '');
+          const rtype = String(row[1] ?? '');
+          const name = String(row[2] ?? '');
+          if (!rnum || !name) return;
+          if (!rooms[rnum]) rooms[rnum] = { type: rtype, members: [] };
+          rooms[rnum].type = rtype || rooms[rnum].type;
+          rooms[rnum].members.push(name);
+        });
+        // sort members
+        Object.keys(rooms).forEach(k => rooms[k].members.sort((a,b)=>a.localeCompare(b, undefined, { numeric:true })));
+        return rooms;
+      }, [roomData]);
+
+      const personToRoom = useMemo(() => {
+        const map = new Map();
+        (roomData || []).forEach(row => {
+          const rnum = String(row[0] ?? '');
+          const rtype = String(row[1] ?? '');
+          const name = String(row[2] ?? '');
+          if (!name) return;
+          map.set(name, { roomNum: rnum, roomType: rtype });
+        });
+        return map;
+      }, [roomData]);
+
+      useEffect(() => {
+        if (!selectedPerson) return;
+        const current = personToRoom.get(selectedPerson);
+        if (current) {
+          setRoomNum(current.roomNum || '');
+          setRoomType(current.roomType || '2인실');
+        } else {
+          setRoomNum('');
+          setRoomType('2인실');
+        }
+      }, [selectedPerson, personToRoom]);
+
+      const unlock = (e) => {
+        e.preventDefault();
+        if (pw === TEACHER_PASSWORD) {
+          setIsUnlocked(true);
+          setPw('');
+          setPwErr('');
+        } else {
+          setPwErr('비밀번호가 일치하지 않습니다.');
+        }
+      };
+
+      const assign = async () => {
+        if (!selectedPerson) return alert('먼저 사람을 선택해주세요.');
+        if (!roomNum.trim()) return alert('방 번호를 입력해주세요.');
+        if (!roomType.trim()) return alert('방 타입을 선택해주세요.');
+        await onUpdate(googleScript.setRoomAssignment(selectedPerson, roomNum.trim(), roomType.trim()));
+      };
+
+      const remove = async (personName) => {
+        if (!confirm(`${personName} 배정을 삭제할까요?`)) return;
+        await onUpdate(googleScript.removeRoomAssignment(personName));
+      };
+
+      const changeRoomType = async (rnum) => {
+        const newType = prompt(`${rnum}호 방 타입을 입력하세요 (예: 2인실/3인실/4인실)`, groupedRooms[rnum]?.type || '');
+        if (!newType || !newType.trim()) return;
+        await onUpdate(googleScript.setRoomType(rnum, newType.trim()));
+      };
+
+      const RoomCards = () => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {Object.keys(groupedRooms).sort((a,b)=>a.localeCompare(b, undefined, { numeric:true })).map(roomNumKey => {
+            const room = groupedRooms[roomNumKey];
+            const isTeacherRoom = (room.members || []).some(m => (teachers || []).some(t => t.name === m));
+            return (
+              <div key={roomNumKey} className={`p-3 rounded-lg border ${isTeacherRoom ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'} shadow-sm`}>
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className={`font-bold ${isTeacherRoom ? 'text-red-600' : 'text-blue-600'}`}>
+                    {roomNumKey}호 <span className="text-xs font-normal text-gray-500">({room.type})</span>
+                  </h4>
+                  {mode === 'edit' && isUnlocked && (
+                    <button
+                      type="button"
+                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                      onClick={() => changeRoomType(roomNumKey)}
+                      disabled={isLoading}
+                    >
+                      타입변경
+                    </button>
+                  )}
+                </div>
+
+                <ul className="mt-2 text-sm space-y-1">
+                  {(room.members || []).map((name, i) => (
+                    <li key={i} className="flex items-center justify-between gap-2">
+                      <span className={(teachers || []).some(t => t.name === name) ? 'font-bold text-red-700' : ''}>{name}</span>
+                      {mode === 'edit' && isUnlocked && (
+                        <button
+                          type="button"
+                          className="text-xs bg-red-50 text-red-600 hover:bg-red-100 px-2 py-1 rounded"
+                          onClick={() => remove(name)}
+                          disabled={isLoading}
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      );
+
+      return (
+        <div className="p-4 space-y-4">
+          {/* 내부 탭 */}
+          <div className="bg-white p-3 rounded-xl shadow-lg">
+            <h2 className="text-2xl font-bold text-center mb-3">숙소 배정</h2>
+            <div className="flex gap-2">
+              <button
+                className={`w-full py-2 rounded-lg font-bold border ${mode === 'list' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200'}`}
+                onClick={() => setMode('list')}
+                type="button"
+              >
+                배정 명단(공개)
+              </button>
+              <button
+                className={`w-full py-2 rounded-lg font-bold border ${mode === 'edit' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200'}`}
+                onClick={() => setMode('edit')}
+                type="button"
+              >
+                교사용 편집
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              배정 명단은 누구나 볼 수 있습니다. 편집은 교사용 인증 후 가능합니다.
+            </p>
+          </div>
+
+          {/* 교사용 편집 패널 */}
+          {mode === 'edit' && (
+            <div className="bg-white p-4 rounded-xl shadow-lg">
+              {!isUnlocked ? (
+                <form onSubmit={unlock} className="space-y-2">
+                  <p className="text-gray-700 font-bold">교사용 인증</p>
+                  <input
+                    type="password"
+                    className="w-full p-2 border rounded-md"
+                    placeholder="비밀번호"
+                    value={pw}
+                    onChange={(e) => setPw(e.target.value)}
+                  />
+                  {pwErr && <p className="text-red-500 text-sm">{pwErr}</p>}
+                  <button className="w-full bg-blue-500 text-white font-bold py-2 rounded-md">확인</button>
+                </form>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-green-700">인증 완료</p>
+                    <button
+                      type="button"
+                      className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                      onClick={() => { setIsUnlocked(false); setSelectedPerson(null); setSearch(''); }}
+                    >
+                      잠금
+                    </button>
+                  </div>
+
+                  <input
+                    className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="학생/교사 검색"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+
+                  <div className="max-h-40 overflow-y-auto border rounded-lg bg-gray-50">
+                    <ul className="divide-y divide-gray-200">
+                      {filteredPeople.map(p => {
+                        const cur = personToRoom.get(p);
+                        const badge = cur ? `${cur.roomNum}호 · ${cur.roomType}` : '미배정';
+                        const badgeClass = cur ? 'bg-green-600' : 'bg-gray-400';
+                        return (
+                          <li
+                            key={p}
+                            onClick={() => setSelectedPerson(p)}
+                            className={`p-3 cursor-pointer transition-colors flex items-center justify-between gap-2 ${
+                              selectedPerson === p ? 'bg-blue-100 font-bold' : 'hover:bg-gray-100'
+                            }`}
+                          >
+                            <span>{p}</span>
+                            <span className={`text-xs text-white px-2 py-1 rounded-full ${badgeClass}`}>{badge}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+
+                  <div className="border rounded-lg p-3 bg-white">
+                    <p className="text-sm text-gray-700">
+                      선택: <span className="font-bold text-blue-600">{selectedPerson || '없음'}</span>
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <input
+                        className="w-full p-2 border rounded-md"
+                        placeholder="방 번호 (예: 101)"
+                        value={roomNum}
+                        onChange={(e) => setRoomNum(e.target.value)}
+                        disabled={!selectedPerson}
+                      />
+                      <select
+                        className="w-full p-2 border rounded-md bg-white"
+                        value={roomType}
+                        onChange={(e) => setRoomType(e.target.value)}
+                        disabled={!selectedPerson}
+                      >
+                        <option value="2인실">2인실</option>
+                        <option value="3인실">3인실</option>
+                        <option value="4인실">4인실</option>
+                        <option value="교사실">교사실</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <button
+                        type="button"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg disabled:bg-gray-300"
+                        onClick={assign}
+                        disabled={!selectedPerson || isLoading}
+                      >
+                        {isLoading ? '저장 중...' : '배정/수정'}
+                      </button>
+                      <button
+                        type="button"
+                        className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2 rounded-lg disabled:text-gray-400"
+                        onClick={() => selectedPerson ? remove(selectedPerson) : null}
+                        disabled={!selectedPerson || isLoading}
+                      >
+                        배정 삭제
+                      </button>
+                    </div>
+
+                    <p className="text-xs text-gray-500 mt-2">
+                      ※ 한 사람은 한 방에만 배정됩니다(배정 시 기존 배정은 자동 제거).
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 명단 영역 (항상 공개) */}
+          <div className="bg-white p-4 rounded-xl shadow-lg">
+            <h3 className="font-bold text-gray-800 mb-3">
+              {mode === 'edit' ? '현재 배정 현황(편집 가능)' : '숙소 배정 명단'}
+            </h3>
+            {Object.keys(groupedRooms).length > 0 ? (
+              <RoomCards />
+            ) : (
+              <p className="text-center text-gray-500 py-10">배정된 정보가 없습니다.</p>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const ScheduleInfoView = ({ teachers }) => {
+      const schedule = {
+        "1일차 (01/20 화)": [
+          { text: "07:40 학교 출발" },
+          { text: "12:00 점심 식사(경희 면옥)" },
+          { text: "13:00 선택 프로그램(국중박/KBS)" },
+          { text: "17:30 저녁 식사(파티앤프렌즈)", url: "http://partynfriends.com/" },
+          { text: "19:00 연극 관람(창신아트홀)", url: "https://ko.wikipedia.org/wiki/%ED%95%9C%EC%97%AC%EB%A6%84_%EB%B0%A4%EC%9D%98_%EA%BF%88" },
+          { text: "21:30 숙소 도착(파크하비오)", url: "http://www.hotelparkhabio.co.kr/jp/" }
+        ],
+        "2일차 (01/21 수)": [
+          { text: "09:00 숙소 출발" },
+          { text: "10:00 롯데월드(서울스카이[선택])", url: "https://seoulsky.lotteworld.com/" },
+          { text: "19:00 숙소 복귀" }
+        ],
+        "3일차 (01/22 목)": [
+          { text: "08:30 숙소 출발" },
+          { text: "10:00 경복궁", url: "https://www.heritage.go.kr/heri/html/HtmlPage.do?pg=/palaces/palacesRoyalInfo.jsp&pageNo=2_1_1_1" },
+          { text: "12:00 점심 식사" },
+          { text: "14:00 서울대 탐방(서울대 학식)" },
+          { text: "20:00 학교 도착 예정" }
+        ]
+      };
+      const packing = ["여벌 옷", "잠옷", "속옷/양말", "편한 신발", "세면도구", "상비약", "충전기", "용돈", "우산"];
+
+      return (
+        <div className="p-4 space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-center mb-6">🗓️ 전체 일정</h2>
+            <div className="space-y-4">
+              {Object.entries(schedule).map(([day, items]) => (
+                <div key={day} className="bg-white p-4 rounded-lg shadow">
+                  <h3 className="font-bold text-blue-600 mb-2">{day}</h3>
+                  <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                    {items.map(item => (
+                      <li key={item.text}>
+                        {item.url ? (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            {item.text} <span role="img" aria-label="link">🔗</span>
+                          </a>
+                        ) : item.text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-bold text-center mb-6">ℹ️ 필수 정보</h2>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h3 className="font-bold text-red-600 mb-2">🚨 비상 연락망</h3>
+                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                  {teachers && teachers.map(teacher => (
+                    <li key={teacher.name}>{teacher.name} {teacher.contact}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h3 className="font-bold text-indigo-600 mb-2">🎒 개인 준비물</h3>
+                <ul className="list-disc list-inside text-sm text-gray-700 grid grid-cols-2 gap-1">
+                  {packing.map(p => <li key={p}>{p}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const BusView = ({ data, onUpdate, isLoading }) => {
+      const [busNumber, setBusNumber] = useState('1');
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [selectedSeat, setSelectedSeat] = useState(null);
+
+      const TEACHER_PASSWORD = "123456";
+      const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [busToReset, setBusToReset] = useState(null);
+
+      const getSeatDisplayName = (studentName) => {
+        if (!studentName) return '';
+        const parts = studentName.split(' ');
+        if (parts.length > 2) return parts[2];
+        return studentName;
+      };
+
+      const boardedStudents = useMemo(() => new Set(Object.values(data.busData).flatMap(bus => Object.values(bus))), [data.busData]);
+      const unboardedStudents = useMemo(() => data.students.filter(s => !boardedStudents.has(s)), [data.students, boardedStudents]);
+
+      const handleSeatClick = (seat) => {
+        const studentName = data.busData[busNumber]?.[seat];
+        if (studentName) {
+          if (confirm(`[${studentName}] 학생을 좌석에서 내리게 하시겠습니까?`)) {
+            onUpdate(googleScript.updateBusSeat(busNumber, seat, ''));
+          }
+        } else {
+          setSelectedSeat(seat);
+          setIsModalOpen(true);
+        }
+      };
+
+      const handleSelectStudent = async (studentName) => {
+        setIsModalOpen(false);
+        if (!studentName) return;
+        await onUpdate(googleScript.updateBusSeat(busNumber, selectedSeat, studentName));
+      };
+
+      const openResetModal = (busNum) => {
+        setBusToReset(busNum);
+        setPassword('');
+        setError('');
+        setIsResetModalOpen(true);
+      };
+
+      const handlePasswordAndReset = async (e) => {
+        e.preventDefault();
+        if (password !== TEACHER_PASSWORD) {
+          setError('비밀번호가 일치하지 않습니다.');
+          return;
+        }
+        setIsResetModalOpen(false);
+        if (confirm(`${busToReset}호차 탑승 정보를 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+          await onUpdate(googleScript.resetBus(busToReset));
+        }
+        setPassword('');
+        setError('');
+        setBusToReset(null);
+      };
+
+      const StudentSelectModal = () => {
+        const [searchTerm, setSearchTerm] = useState('');
+        const filteredStudents = useMemo(() => {
+          if (!searchTerm.trim()) return unboardedStudents.slice().sort();
+          const t = searchTerm.toLowerCase().trim();
+          return unboardedStudents.filter(s => s.toLowerCase().includes(t)).sort();
+        }, [searchTerm, unboardedStudents]);
+
+        return (
+          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`${busNumber}호차 ${selectedSeat}번 좌석 배정`}>
+            <div className="flex flex-col space-y-4">
+              <input
+                type="text"
+                placeholder="이름 또는 학번으로 검색"
+                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                autoFocus
+              />
+              <div className="max-h-64 overflow-y-auto border rounded-lg bg-gray-50">
+                {filteredStudents.length > 0 ? (
+                  <ul className="divide-y divide-gray-200">
+                    {filteredStudents.map(student => (
+                      <li key={student} className="p-3 hover:bg-blue-100 cursor-pointer transition-colors duration-150" onClick={() => handleSelectStudent(student)}>
+                        {student}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="p-4 text-center text-gray-500">검색 결과가 없습니다.</p>
+                )}
+              </div>
+            </div>
+          </Modal>
+        );
+      };
+
+      return (
+        <div className="p-4">
+          <Modal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} title={`${busToReset}호차 초기화 인증`}>
+            <form onSubmit={handlePasswordAndReset}>
+              <p className="mb-4 text-gray-600">교사용 비밀번호를 입력하여 초기화를 승인하세요.</p>
+              <input
+                type="password"
+                placeholder="비밀번호"
+                className="w-full p-2 border rounded-md"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+              <button type="submit" className="w-full mt-4 bg-red-500 text-white font-bold py-2 px-4 rounded-md">초기화 승인</button>
+            </form>
+          </Modal>
+
+          {isModalOpen && <StudentSelectModal />}
+
+          <div className="flex justify-around border-b mb-4 bg-white rounded-t-lg">
+            {[1, 2, 3].map(num => (
+              <button
+                key={num}
+                onClick={() => setBusNumber(String(num))}
+                className={`py-3 px-4 text-lg font-bold w-full rounded-t-md ${busNumber == num ? 'text-blue-600 border-b-4 border-blue-600' : 'text-gray-500'}`}
+              >
+                {num}호차
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+            <div className="bg-gray-200 rounded-lg p-2 grid grid-cols-5 gap-2 w-max mx-auto text-xs text-center">
+              <div className="col-span-2 bg-gray-600 text-white rounded p-2 flex items-center justify-center">운전석</div>
+              <div className="col-span-1"></div>
+              <div className="col-span-2 bg-gray-400 text-white rounded p-2 flex items-center justify-center">입구</div>
+
+              {Array.from({ length: 45 }, (_, i) => i + 1).map(seat => {
+                const student = data.busData[busNumber]?.[seat];
+                const isOccupied = !!student;
+                const styleIndex = seat;
+                const gridCol = styleIndex <= 40 ? ((((styleIndex - 1) % 4) < 2) ? (((styleIndex - 1) % 4) + 1) : (((styleIndex - 1) % 4) + 2)) : (styleIndex - 40);
+                const gridRow = styleIndex > 40 ? 12 : Math.floor((styleIndex - 1) / 4) + 2;
+                return (
+                  <div
+                    key={seat}
+                    className={`h-10 rounded flex items-center justify-center font-bold transition-transform transform cursor-pointer hover:scale-110 ${isOccupied ? 'bg-green-600 text-white' : 'bg-gray-300'}`}
+                    style={{ gridColumn: gridCol, gridRow: gridRow }}
+                    onClick={() => handleSeatClick(seat)}
+                  >
+                    {isOccupied ? getSeatDisplayName(student) : seat}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => openResetModal(busNumber)}
+              className="w-full mt-4 bg-red-500 text-white font-bold py-2 rounded-lg disabled:bg-gray-400"
+              disabled={isLoading}
+            >
+              {isLoading ? '초기화 중...' : '초기화'}
+            </button>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <h3 className="font-bold mb-2">미탑승 학생 ({unboardedStudents.length}명)</h3>
+            <div className="max-h-40 overflow-y-auto text-sm flex flex-wrap gap-2">
+              {unboardedStudents.slice().sort().map(s => <span key={s} className="bg-yellow-100 px-2 py-1 rounded">{s}</span>)}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const MealView = ({ data, onUpdate, isLoading }) => {
+      const [selectedStudent, setSelectedStudent] = useState(null);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [isUnlocked, setIsUnlocked] = useState(false);
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [localChoices, setLocalChoices] = useState({});
+      const [viewMode, setViewMode] = useState('student_search');
+      const TEACHER_PASSWORD = "123456";
+
+      useEffect(() => {
+        if (selectedStudent && data.mealMenus) {
+          const initial = {};
+          data.mealMenus.forEach(menu => {
+            const mealId = menu[0];
+            const choice = data.mealChoices?.[mealId]?.[selectedStudent];
+            if (choice) initial[mealId] = choice;
+          });
+          setLocalChoices(initial);
+        }
+      }, [selectedStudent, data.mealMenus, data.mealChoices]);
+
+      const mealStats = useMemo(() => {
+        if (!data.mealMenus || !data.mealChoices || !data.students) return {};
+        const stats = {};
+        const allStudentSet = new Set(data.students);
+
+        data.mealMenus.forEach(menu => {
+          const mealId = menu[0];
+          const title = menu[1];
+          const options = menu.slice(2).filter(opt => opt.trim() !== '');
+          if (options.length < 2) return;
+
+          const choicesForThisMeal = data.mealChoices[mealId] || {};
+          const studentsWhoChose = new Set(Object.keys(choicesForThisMeal));
+          const studentsWhoDidNotChoose = [...allStudentSet].filter(s => !studentsWhoChose.has(s));
+
+          stats[mealId] = {
+            title,
+            options: {},
+            totalChosenCount: studentsWhoChose.size,
+            studentsWhoDidNotChoose: studentsWhoDidNotChoose.sort(),
+          };
+
+          options.forEach(option => { stats[mealId].options[option] = { count: 0 }; });
+
+          for (const studentName in choicesForThisMeal) {
+            const choice = choicesForThisMeal[studentName];
+            if (stats[mealId].options[choice]) stats[mealId].options[choice].count++;
+          }
+        });
+
+        return stats;
+      }, [data.mealMenus, data.mealChoices, data.students]);
+
+      const handlePassword = (e) => {
+        e.preventDefault();
+        if (password === TEACHER_PASSWORD) {
+          setIsUnlocked(true);
+          setIsModalOpen(false);
+          setError('');
+          setPassword('');
+          setViewMode('status');
+        } else {
+          setError('비밀번호가 일치하지 않습니다.');
+        }
+      };
+
+      const handleSelectMeal = (mealId, choice) => {
+        setLocalChoices(prev => ({ ...prev, [mealId]: choice }));
+      };
+
+      const handleSaveAll = async () => {
+        await onUpdate(googleScript.saveAllMealChoices(selectedStudent, localChoices));
+      };
+
+      const filteredStudents = useMemo(() => {
+        const list = data.students.slice().sort();
+        if (!searchTerm.trim()) return list;
+        const t = searchTerm.toLowerCase().trim();
+        return list.filter(s => s.toLowerCase().includes(t)).sort();
+      }, [searchTerm, data.students]);
+
+      const handleStudentSelect = (student) => {
+        setSelectedStudent(student);
+        setViewMode('student_form');
+      };
+
+      const handleBackFromForm = () => {
+        setSelectedStudent(null);
+        setLocalChoices({});
+        setViewMode(isUnlocked ? 'status' : 'student_search');
+      };
+
+      const ProgressBar = ({ value, max, colorClass }) => {
+        const pct = max > 0 ? (value / max) * 100 : 0;
+        return (
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div className={`${colorClass} h-2.5 rounded-full`} style={{ width: `${pct}%` }}></div>
+          </div>
+        );
+      };
+
+      if (viewMode === 'student_form' && selectedStudent) {
+        const totalMeals = data.mealMenus?.filter(m => m.slice(2).some(opt => opt !== '')).length || 0;
+        const selectedMeals = Object.keys(localChoices).length;
+
+        return (
+          <div className="p-4 space-y-4">
+            <div className="bg-white p-4 rounded-xl shadow-lg">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-blue-600">{selectedStudent}</h2>
+                <span className="font-bold text-gray-700">{`(${selectedMeals} / ${totalMeals} 선택 완료)`}</span>
+              </div>
+              <button onClick={handleBackFromForm} className="text-sm bg-gray-200 px-3 py-1 rounded-md mt-2">뒤로가기</button>
+            </div>
+
+            {data.mealMenus && data.mealMenus.map(menu => {
+              const mealId = menu[0];
+              const mealTitle = menu[1];
+              const options = menu.slice(2).filter(opt => opt !== '');
+              const currentChoice = localChoices[mealId];
+              if (options.length === 0) return null;
+
+              return (
+                <div key={mealId} className="bg-white p-4 rounded-xl shadow-lg">
+                  <h3 className="font-bold text-lg text-gray-800 mb-3">{mealTitle}</h3>
+                  {options.length === 1 ? (
+                    <p className="text-gray-500 bg-gray-100 p-3 rounded-md text-center">{options[0]}</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {options.map(option => {
+                        const isSelected = currentChoice === option;
+                        return (
+                          <button
+                            key={option}
+                            onClick={() => handleSelectMeal(mealId, option)}
+                            className={`flex-grow p-3 text-center rounded-lg border-2 font-semibold transition-all
+                              ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-600 border-blue-500 hover:bg-blue-50'}
+                            `}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <div className="pt-4">
+              <button
+                onClick={handleSaveAll}
+                disabled={isLoading}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isLoading ? '저장 중...' : '전체 선택 저장'}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (isUnlocked && viewMode === 'status') {
+        const totalStudents = data.students.length;
+        return (
+          <div className="p-4 space-y-4">
+            <div className="bg-white p-4 rounded-xl shadow-lg">
+              <h2 className="text-2xl font-bold text-gray-800 text-center">🍽️ 식사 선택 현황</h2>
+              <p className="text-center text-gray-500 mt-1">전체 학생: {totalStudents}명</p>
+              <button
+                onClick={() => setViewMode('student_search')}
+                className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md"
+              >
+                학생별 선택/수정하기
+              </button>
+            </div>
+
+            {Object.keys(mealStats).length > 0 ? Object.entries(mealStats).map(([mealId, stats]) => (
+              <div key={mealId} className="bg-white p-4 rounded-xl shadow-lg">
+                <h3 className="font-bold text-lg text-gray-800 mb-2">{stats.title}</h3>
+                <div className="text-sm font-semibold text-gray-600 mb-3">
+                  {stats.totalChosenCount} / {totalStudents} 명 선택 완료
+                </div>
+
+                <div className="space-y-3">
+                  {Object.entries(stats.options).map(([option, details]) => (
+                    <div key={option}>
+                      <div className="flex justify-between items-center mb-1 text-sm">
+                        <span className="font-medium text-gray-700">{option}</span>
+                        <span className="font-bold text-blue-600">{details.count}명</span>
+                      </div>
+                      <ProgressBar value={details.count} max={totalStudents} colorClass="bg-blue-500" />
+                    </div>
+                  ))}
+                </div>
+
+                {stats.studentsWhoDidNotChoose.length > 0 && (
+                  <details className="mt-4">
+                    <summary className="text-sm font-semibold text-red-600 cursor-pointer">
+                      미선택 학생 ({stats.studentsWhoDidNotChoose.length}명)
+                    </summary>
+                    <div className="text-xs flex flex-wrap gap-x-3 gap-y-1 text-gray-600 mt-2 p-2 bg-gray-50 rounded-md">
+                      {stats.studentsWhoDidNotChoose.map(s => <span key={s}>{s}</span>)}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )) : (
+              <div className="text-center text-gray-500 py-8 bg-white rounded-xl shadow-lg">통계 데이터가 없습니다.</div>
+            )}
+          </div>
+        );
+      }
+
+      if (viewMode === 'student_search') {
+        return (
+          <div className="p-4 flex flex-col h-full">
+            <div className="bg-white p-4 rounded-xl shadow-lg mb-4 shrink-0">
+              <h2 className="text-2xl font-bold text-gray-800 text-center">누구신가요?</h2>
+              <p className="text-center text-gray-500 text-sm mt-2">먼저 명단에서 본인 이름을 선택해주세요.</p>
+
+              {!isUnlocked && (
+                <button onClick={() => setIsModalOpen(true)} className="w-full mt-3 bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg text-sm">
+                  교사용
+                </button>
+              )}
+
+              {isUnlocked && (
+                <button onClick={() => setViewMode('status')} className="w-full mt-3 bg-green-200 text-green-800 font-bold py-2 px-4 rounded-lg text-sm">
+                  현황 보기로 돌아가기
+                </button>
+              )}
+
+              <div className="mt-4">
+                <input
+                  type="text"
+                  placeholder="이름 또는 학번으로 검색..."
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex-grow overflow-y-auto bg-white rounded-xl shadow-lg">
+              <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="교사용 인증">
+                <form onSubmit={handlePassword}>
+                  <input
+                    type="password"
+                    placeholder="비밀번호"
+                    className="w-full p-2 border rounded-md"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                  {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                  <button type="submit" className="w-full mt-4 bg-blue-500 text-white font-bold py-2 px-4 rounded-md">확인</button>
+                </form>
+              </Modal>
+
+              <ul className="divide-y divide-gray-200">
+                {filteredStudents.map(student => (
+                  <li
+                    key={student}
+                    className="p-4 hover:bg-blue-100 cursor-pointer transition-colors duration-150 font-semibold"
+                    onClick={() => handleStudentSelect(student)}
+                  >
+                    {student}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    };
+
+    const AllStudentsView = ({ students, busData, activities }) => {
+      const [searchTerm, setSearchTerm] = useState('');
+      const [selectedClass, setSelectedClass] = useState('all');
+      const [selectedBus, setSelectedBus] = useState('all');
+
+      const handleClearFilters = () => {
+        setSearchTerm('');
+        setSelectedClass('all');
+        setSelectedBus('all');
+      };
+
+      const isFiltered = searchTerm.trim() !== '' || selectedClass !== 'all' || selectedBus !== 'all';
+
+      const studentDetails = useMemo(() => {
+        if (!students || !busData || !activities) return [];
+        const activityMap = new Map();
+        for (const [key, list] of Object.entries(activities || {})) {
+          let name = '';
+          if (key.includes('kbs')) name = 'KBS';
+          else if (key.includes('museum')) name = '국립중앙박물관';
+          else if (key.includes('sky')) name = '서울스카이';
+          if (!name) continue;
+          (list || []).forEach(student => activityMap.set(student, name));
+        }
+        const busMap = new Map();
+        for (const busNum in (busData || {})) {
+          for (const seat in (busData[busNum] || {})) {
+            busMap.set(busData[busNum][seat], `${busNum}호차 ${seat}번`);
+          }
+        }
+        return students.slice().sort().map(student => ({
+          name: student,
+          busInfo: busMap.get(student) || '미탑승',
+          activityInfo: activityMap.get(student) || '없음'
+        }));
+      }, [students, busData, activities]);
+
+      const uniqueClasses = useMemo(() => {
+        const classSet = new Set((students || []).map(s => s.split(' ')[0]));
+        return Array.from(classSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      }, [students]);
+
+      const uniqueBuses = useMemo(() => Object.keys(busData || {}).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [busData]);
+
+      const filteredStudents = useMemo(() => {
+        let results = studentDetails;
+        if (searchTerm.trim()) {
+          const t = searchTerm.toLowerCase().trim();
+          results = results.filter(s => s.name.toLowerCase().includes(t));
+        }
+        if (selectedClass !== 'all') {
+          results = results.filter(s => s.name.startsWith(selectedClass));
+        }
+        if (selectedBus !== 'all') {
+          if (selectedBus === 'unboarded') results = results.filter(s => s.busInfo === '미탑승');
+          else results = results.filter(s => s.busInfo.startsWith(`${selectedBus}호차`));
+        }
+        return results;
+      }, [studentDetails, searchTerm, selectedClass, selectedBus]);
+
+      return (
+        <div className="p-4 flex flex-col h-full">
+          <div className="bg-white p-4 rounded-xl shadow-lg mb-4 shrink-0">
+            <h2 className="text-2xl font-bold text-gray-800 text-center">🧑‍🎓 전체 학생 명단 ({filteredStudents.length}명)</h2>
+
+            <div className="mt-4 space-y-3">
+              <input
+                type="text"
+                placeholder="이름 또는 학번으로 검색..."
+                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={selectedClass}
+                  onChange={e => setSelectedClass(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none text-center"
+                >
+                  <option value="all">전체 반</option>
+                  {uniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                </select>
+
+                <select
+                  value={selectedBus}
+                  onChange={e => setSelectedBus(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none text-center"
+                >
+                  <option value="all">전체 버스</option>
+                  {uniqueBuses.map(bus => <option key={bus} value={bus}>{bus}호차</option>)}
+                  <option value="unboarded">미탑승</option>
+                </select>
+              </div>
+
+              {isFiltered && (
+                <button onClick={handleClearFilters} className="w-full text-sm text-center text-gray-600 hover:text-blue-600 font-semibold py-2 px-4 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
+                  필터 초기화
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-grow overflow-y-auto bg-white rounded-xl shadow-lg">
+            <ul className="divide-y divide-gray-200">
+              {filteredStudents.length > 0 ? (
+                filteredStudents.map(student => (
+                  <li key={student.name} className="p-4 hover:bg-gray-50">
+                    <p className="font-semibold text-gray-800">{student.name}</p>
+                    <div className="flex items-center space-x-2 mt-2 text-xs">
+                      <span className={`px-2 py-1 rounded-full text-white ${student.busInfo === '미탑승' ? 'bg-gray-400' : 'bg-green-600'}`}>
+                        {student.busInfo}
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-white ${student.activityInfo === '없음' ? 'bg-gray-400' : 'bg-blue-600'}`}>
+                        {student.activityInfo}
+                      </span>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li className="p-4 text-center text-gray-500">검색 결과가 없습니다.</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      );
+    };
+
+    const ActivityMissionView = ({ activities, missions, data, onUpdate, isLoading }) => {
+      const missionsByDay = useMemo(() => {
+        const groups = {};
+        if (missions) {
+          missions.forEach(([day, place, content]) => {
+            if (!groups[day]) groups[day] = [];
+            groups[day].push({ place, content });
+          });
+        }
+        return groups;
+      }, [missions]);
+
+      const day1_kbs_list = activities?.day1_kbs || [];
+      const day1_museum_list = activities?.day1_museum || [];
+      const day2_sky_list = activities?.day2_sky || [];
+
+      const TEACHER_PASSWORD = "123456";
+      const [isUnlocked, setIsUnlocked] = useState(false);
+      const [pw, setPw] = useState('');
+      const [pwErr, setPwErr] = useState('');
+
+      const [search, setSearch] = useState('');
+      const [selectedStudent, setSelectedStudent] = useState(null);
+
+      const filteredStudents = useMemo(() => {
+        const list = (data?.students || []).slice().sort();
+        if (!search.trim()) return list;
+        const t = search.toLowerCase().trim();
+        return list.filter(s => s.toLowerCase().includes(t));
+      }, [search, data?.students]);
+
+      const currentActivityLabel = useMemo(() => {
+        if (!selectedStudent || !activities) return '없음';
+        if ((activities.day1_kbs || []).includes(selectedStudent)) return 'KBS';
+        if ((activities.day1_museum || []).includes(selectedStudent)) return '국립중앙박물관';
+        if ((activities.day2_sky || []).includes(selectedStudent)) return '서울스카이';
+        return '없음';
+      }, [selectedStudent, activities]);
+
+      const unlock = (e) => {
+        e.preventDefault();
+        if (pw === TEACHER_PASSWORD) {
+          setIsUnlocked(true);
+          setPw('');
+          setPwErr('');
+        } else {
+          setPwErr('비밀번호가 일치하지 않습니다.');
+        }
+      };
+
+      const activityButtons = [
+        { key: 'day1_kbs', label: 'KBS' },
+        { key: 'day1_museum', label: '국립중앙박물관' },
+        { key: 'day2_sky', label: '서울스카이' },
+        { key: 'none', label: '없음' },
+      ];
+
+      const setActivity = async (activityKey) => {
+        if (!selectedStudent) return;
+        await onUpdate(googleScript.updateStudentActivity(selectedStudent, activityKey));
+      };
+
+      return (
+        <div className="p-4 space-y-8">
+          <div className="bg-white p-4 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">🎛️ 선택활동 지정(교사용)</h2>
+              {!isUnlocked ? (
+                <span className="text-xs text-gray-500">잠금 상태</span>
+              ) : (
+                <span className="text-xs text-green-600 font-bold">잠금 해제됨</span>
+              )}
+            </div>
+
+            {!isUnlocked ? (
+              <form onSubmit={unlock} className="mt-4 space-y-2">
+                <input
+                  type="password"
+                  className="w-full p-2 border rounded-md"
+                  placeholder="비밀번호"
+                  value={pw}
+                  onChange={e => setPw(e.target.value)}
+                />
+                {pwErr && <p className="text-red-500 text-sm">{pwErr}</p>}
+                <button className="w-full bg-blue-500 text-white font-bold py-2 rounded-md">확인</button>
+              </form>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <input
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="학생 검색(이름/반/번호)"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+
+                <div className="max-h-40 overflow-y-auto border rounded-lg bg-gray-50">
+                  <ul className="divide-y divide-gray-200">
+                    {filteredStudents.map(s => (
+                      <li
+                        key={s}
+                        onClick={() => setSelectedStudent(s)}
+                        className={`p-3 cursor-pointer transition-colors ${
+                          selectedStudent === s ? 'bg-blue-100 font-bold' : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="bg-white border rounded-lg p-3">
+                  <p className="text-sm text-gray-700">
+                    선택 학생: <span className="font-bold text-blue-600">{selectedStudent || '없음'}</span>
+                  </p>
+                  <p className="text-sm text-gray-700 mt-1">
+                    현재 활동: <span className="font-bold text-indigo-600">{currentActivityLabel}</span>
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    {activityButtons.map(b => (
+                      <button
+                        key={b.key}
+                        type="button"
+                        disabled={!selectedStudent || isLoading}
+                        onClick={() => setActivity(b.key)}
+                        className={`py-2 rounded-lg border-2 font-bold transition-all
+                          ${!selectedStudent ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-white text-blue-600 border-blue-500 hover:bg-blue-50'}
+                        `}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-gray-500 mt-2">
+                    ※ 여기서 지정하면 “전체학생” 탭의 파란 라벨이 자동으로 바뀝니다.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-bold text-center mb-6">🏆 오늘의 미션</h2>
+            {['1일차', '2일차', '3일차'].map(day => (
+              missionsByDay[day] && (
+                <div key={day} className="mb-6">
+                  <h3 className="text-xl font-bold text-blue-600 border-l-4 border-blue-600 pl-3 mb-4">{day}</h3>
+                  <div className="space-y-3">
+                    {missionsByDay[day].map((m, i) => (
+                      <div key={i} className="bg-white p-4 rounded-lg shadow-sm">
+                        <p className="font-semibold text-gray-600">{m.place}</p>
+                        <p className="mt-1 text-gray-800">{m.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+
+          <div>
+            <h2 className="text-2xl font-bold text-center mb-6">✨ 선택 활동</h2>
+            <div className="space-y-4 max-w-2xl mx-auto">
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h3 className="font-bold mb-2">1일차 KBS ({day1_kbs_list.length}명)</h3>
+                <ul className="text-sm flex flex-wrap gap-2">
+                  {day1_kbs_list.slice().sort().map(s => <li key={s} className="bg-gray-100 px-2 py-1 rounded">{s}</li>)}
+                </ul>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h3 className="font-bold mb-2">1일차 국립중앙박물관 ({day1_museum_list.length}명)</h3>
+                <ul className="text-sm flex flex-wrap gap-2">
+                  {day1_museum_list.slice().sort().map(s => <li key={s} className="bg-gray-100 px-2 py-1 rounded">{s}</li>)}
+                </ul>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg shadow">
+                <h3 className="font-bold mb-2">2일차 서울스카이 ({day2_sky_list.length}명)</h3>
+                <ul className="text-sm flex flex-wrap gap-2">
+                  {day2_sky_list.slice().sort().map(s => <li key={s} className="bg-gray-100 px-2 py-1 rounded">{s}</li>)}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // =========================
+    // 7) Main App
+    // =========================
+    const App = () => {
+      const [view, setView] = useState('announcement');
+      const [data, setData] = useState(null);
+      const [isLoading, setIsLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const [lastUpdated, setLastUpdated] = useState(null);
+
+      const CACHE_KEY = 'schoolTripData_v3';
+
+      const updateStateAndCache = (newData) => {
+        const ts = new Date();
+        setData(newData);
+        setLastUpdated(ts);
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ data: newData, timestamp: ts.toISOString() }));
+        } catch (e) {
+          console.error('cache write failed', e);
+        }
+      };
+
+      const registerServiceWorker = () => {
+        if ('serviceWorker' in navigator) {
+          const scriptUrl = new URL(location.href);
+          scriptUrl.searchParams.set('path', 'sw.js');
+          navigator.serviceWorker.register(scriptUrl.href)
+            .then(reg => console.log('SW registered:', reg.scope))
+            .catch(err => console.log('SW failed:', err));
+        }
+      };
+
+      useEffect(() => {
+        if (!isDevelopment) registerServiceWorker();
+
+        const initLoad = async () => {
+          let hasCache = false;
+          try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+              const { data: cachedData, timestamp } = JSON.parse(cached);
+              setData(cachedData);
+              setLastUpdated(new Date(timestamp));
+              hasCache = true;
+              setIsLoading(false);
+            }
+          } catch (e) {
+            console.error('cache load failed', e);
+            localStorage.removeItem(CACHE_KEY);
+          }
+
+          try {
+            const result = await googleScript.getServerData();
+            if (result?.error) throw new Error(result.message);
+            updateStateAndCache(result);
+            setError(null);
+          } catch (e) {
+            const msg = e.message || '데이터를 불러오는 데 실패했습니다.';
+            if (!hasCache) setError(msg);
+            else console.error('Background fetch failed:', msg);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+
+        initLoad();
+      }, []);
+
+      const handleMutation = async (mutationPromise) => {
+        setIsLoading(true);
+        const original = data;
+        try {
+          const newData = await mutationPromise;
+          if (newData?.error) throw new Error(newData.message);
+          updateStateAndCache(newData);
+          setError(null);
+        } catch (e) {
+          setError('데이터 업데이트에 실패했습니다. 인터넷 연결을 확인해주세요.');
+          setData(original);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const handleAddAnnouncement = async (text) => {
+        setIsLoading(true);
+        const original = data;
+        try {
+          const newAnnouncements = await googleScript.addAnnouncement(text);
+          const updated = { ...data, announcements: newAnnouncements };
+          updateStateAndCache(updated);
+          setError(null);
+        } catch (e) {
+          setError('공지 등록에 실패했습니다. 인터넷 연결을 확인해주세요.');
+          setData(original);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const renderView = () => {
+        if (!data) return null;
+        switch (view) {
+          case 'announcement':
+            return <AnnouncementsView announcements={data.announcements} onAdd={handleAddAnnouncement} isLoading={isLoading} />;
+          case 'schedule':
+            return <ScheduleInfoView teachers={data.teachers} />;
+          case 'bus':
+            return <BusView data={data} onUpdate={handleMutation} isLoading={isLoading} />;
+          case 'room':
+            return (
+              <RoomsView
+                roomData={data.roomData}
+                teachers={data.teachers}
+                students={data.students}
+                onUpdate={handleMutation}
+                isLoading={isLoading}
+              />
+            );
+          case 'meal':
+            return <MealView data={data} onUpdate={handleMutation} isLoading={isLoading} />;
+          case 'activity':
+            return <ActivityMissionView activities={data.activities} missions={data.missions} data={data} onUpdate={handleMutation} isLoading={isLoading} />;
+          case 'students':
+            return <AllStudentsView students={data.students} busData={data.busData} activities={data.activities} />;
+          default:
+            return <AnnouncementsView announcements={data.announcements} onAdd={handleAddAnnouncement} isLoading={isLoading} />;
+        }
+      };
+
+      if (isLoading && !data) return <LoadingSpinner message="수학여행 데이터를 불러오는 중..." />;
+
+      if (error && !data) {
+        return (
+          <div className="p-8 text-center text-red-600 bg-red-50">
+            <h2 className="text-xl font-bold mb-4">오류 발생</h2>
+            <p>{error}</p>
+            <p className="mt-4 text-sm text-gray-500">인터넷 연결을 확인하고 페이지를 새로고침 해주세요.</p>
+          </div>
+        );
+      }
+
+      const navItems = [
+        { id: 'announcement', icon: <MegaphoneIcon />, label: '공지' },
+        { id: 'schedule', icon: <ScheduleIcon />, label: '일정/정보' },
+        { id: 'bus', icon: <BusIcon />, label: '버스' },
+        { id: 'room', icon: <KeyIcon />, label: '숙소' },
+        { id: 'meal', icon: <FoodIcon />, label: '식사' },
+        { id: 'activity', icon: <StarIcon />, label: '미션/활동' },
+        { id: 'students', icon: <UsersIcon />, label: '전체학생' },
+      ];
+
+      return (
+        <div className="max-w-lg mx-auto bg-white shadow-2xl flex flex-col h-screen-safe">
+          {error && data && (
+            <div className="bg-yellow-500 text-white text-center p-2 text-sm z-20 shrink-0">
+              네트워크 연결 불안정. 오프라인 데이터 표시 중.
+              {lastUpdated && ` (마지막 동기화: ${lastUpdated.toLocaleTimeString('ko-KR')})`}
+            </div>
+          )}
+
+          <header className="text-center p-4 border-b shrink-0">
+            <h1 className="text-2xl font-bold text-blue-600">진해동일고 수학여행 종합 시스템</h1>
+          </header>
+
+          <main className="flex-grow overflow-y-auto bg-gray-50">
+            {renderView()}
+          </main>
+
+          <footer className="border-t sticky bottom-0 bg-white shrink-0">
+            <nav className="flex justify-around">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setView(item.id)}
+                  className={`flex flex-col items-center justify-center pt-2 pb-1 w-full transition-colors duration-200 ${
+                    view === item.id ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'
+                  }`}
+                >
+                  {React.cloneElement(item.icon, { className: 'w-7 h-7' })}
+                  <span className="text-xs mt-1">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </footer>
+        </div>
+      );
+    };
+
+    // =========================
+    // 8) Render
+    // =========================
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
+  </script>
+</body>
+</html>
